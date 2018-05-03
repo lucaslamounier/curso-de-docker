@@ -1,0 +1,77 @@
+version: '3'
+volumes:
+  dados:
+networks:
+  banco:
+  web:
+  fila:
+services:
+  # Servico de banco de dados
+  db:
+    image: postgres:9.6
+    volumes:
+      # Volume dos dados
+      - dados:/var/lib/postgresql/data
+      # Scripts
+      - ./scripts:/scripts
+      # Inicializa o script quando sobe o banco
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      # Pertence apenas a rede chamada banco
+      - banco
+  # Servico de frontend
+  frontend:
+    image: nginx:1.13
+    volumes:
+      # Site
+      - ./web:/usr/share/nginx/html/
+      # Configuração do proxy reverso
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    ports:
+      - 80:80
+    networks:
+      - web
+    # Orquestra a dependencia entre serviços
+    depends_on:
+      - app
+  # Servico APP
+  app:
+    image: python:3.6
+    volumes:
+      # Aplicação
+      - ./app:/app
+    working_dir: /app
+    command: bash ./app.sh
+    networks: 
+      # Tem acesso as duas redes
+      - banco
+      - web
+      - fila
+    depends_on:
+      # Depende do servico de banco de dados
+      - db
+      - queue
+    environment:
+      DB_NAME: email_sender
+      HTTPS_PROXY: http://10.251.12.129:3128
+      HTTP_PROXY: http://10.251.12.129:3128
+  queue:
+    image: redis:3.2
+    networks: 
+      - fila
+  worker:
+    # Procura dentro da pasta worker o Dockerfile e faz o build da imagem
+    build: worker
+    volumes:
+      # Worker
+      - ./worker:/worker
+    working_dir: /worker
+    command: worker.py
+    environment:
+      HTTPS_PROXY: http://10.251.12.129:3128
+      HTTP_PROXY: http://10.251.12.129:3128
+    networks: 
+      - fila
+    depends_on:
+      - queue
+    

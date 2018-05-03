@@ -1,0 +1,6 @@
+version: '3'
+services:
+  app:
+    environment:
+      # Sobreescreve essa variavel do arquivo original
+      - DB_NAME=email_sender
